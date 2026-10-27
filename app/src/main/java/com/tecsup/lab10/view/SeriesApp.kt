@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -32,13 +33,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.tecsup.lab10.data.PostApiService
 import com.tecsup.lab10.data.SerieApiService
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 @Composable
 fun SeriesApp() {
-    val urlBase = "http://10.0.2.2:8000/" // o tu IP si usarás un dispositivo externo
+    val urlBase = "http://10.0.2.2:8000/"
     val servicio = remember {
         Retrofit.Builder()
             .baseUrl(urlBase)
@@ -46,26 +48,40 @@ fun SeriesApp() {
             .build()
             .create(SerieApiService::class.java)
     }
+    val postServicio = remember {
+        Retrofit.Builder()
+            .baseUrl("https://jsonplaceholder.typicode.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(PostApiService::class.java)
+    }
     val navController = rememberNavController()
 
     Scaffold(
         modifier = Modifier.padding(top = 40.dp),
         topBar = { BarraSuperior() },
         bottomBar = { BarraInferior(navController) },
-        floatingActionButton = { BotonFAB(navController, servicio) },
-        content = { paddingValues -> Contenido(paddingValues, navController, servicio) }
+        floatingActionButton = { BotonFAB(navController) },
+        content = { paddingValues ->
+            Contenido(paddingValues, navController, servicio, postServicio)
+        }
     )
 }
 
 @Composable
-fun BotonFAB(navController: NavHostController, servicio: SerieApiService) {
+fun BotonFAB(navController: NavHostController) {
     val cbeState by navController.currentBackStackEntryAsState()
     val rutaActual = cbeState?.destination?.route
-    if (rutaActual == "series") {
+    val rutaNuevo = when (rutaActual) {
+        "series" -> "serieNuevo"
+        "posts" -> "postNuevo"
+        else -> null
+    }
+    if (rutaNuevo != null) {
         FloatingActionButton(
             containerColor = Color.Magenta,
             contentColor = Color.White,
-            onClick = { navController.navigate("serieNuevo") }
+            onClick = { navController.navigate(rutaNuevo) }
         ) {
             Icon(
                 imageVector = Icons.Filled.Add,
@@ -109,6 +125,12 @@ fun BarraInferior(navController: NavHostController) {
             selected = navController.currentDestination?.route == "series",
             onClick = { navController.navigate("series") }
         )
+        NavigationBarItem(
+            icon = { Icon(Icons.Outlined.Email, contentDescription = "Posts") },
+            label = { Text("Posts") },
+            selected = navController.currentDestination?.route == "posts",
+            onClick = { navController.navigate("posts") }
+        )
     }
 }
 
@@ -116,7 +138,8 @@ fun BarraInferior(navController: NavHostController) {
 fun Contenido(
     pv: PaddingValues,
     navController: NavHostController,
-    servicio: SerieApiService
+    servicio: SerieApiService,
+    postServicio: PostApiService
 ) {
     Box(
         modifier = Modifier
@@ -125,9 +148,11 @@ fun Contenido(
     ) {
         NavHost(
             navController = navController,
-            startDestination = "inicio" // Ruta de inicio
+            startDestination = "inicio"
         ) {
             composable("inicio") { ScreenInicio() }
+
+            // ----- Series (API Django) -----
             composable("series") { ContenidoSeriesListado(navController, servicio) }
             composable("serieNuevo") {
                 ContenidoSerieEditar(navController, servicio, 0)
@@ -143,6 +168,24 @@ fun Contenido(
                 arguments = listOf(navArgument("id") { type = NavType.IntType })
             ) {
                 ContenidoSerieEliminar(navController, servicio, it.arguments!!.getInt("id"))
+            }
+
+            // ----- Posts (JSONPlaceholder) -----
+            composable("posts") { ContenidoPostsListado(navController, postServicio) }
+            composable("postNuevo") {
+                ContenidoPostEditar(navController, postServicio, 0)
+            }
+            composable(
+                "postVer/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.IntType })
+            ) {
+                ContenidoPostEditar(navController, postServicio, it.arguments!!.getInt("id"))
+            }
+            composable(
+                "postDel/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.IntType })
+            ) {
+                ContenidoPostEliminar(navController, postServicio, it.arguments!!.getInt("id"))
             }
         }
     }
